@@ -1,92 +1,111 @@
-// api/meditationApi.js
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// services/meditationApi.js
+const API_URL = 'http://localhost:5000/api';
 
-// Helper function for making API requests
-const fetchWithAuth = async (endpoint, options = {}) => {
-  const token = localStorage.getItem('meditationToken');
+// Get the authentication token from localStorage
+const getToken = () => localStorage.getItem('token');
+
+// Helper for making authenticated requests
+const authFetch = async (endpoint, options = {}) => {
+  const token = getToken();
+  
+  if (!token) {
+    throw new Error('Not authenticated');
+  }
   
   const headers = {
     'Content-Type': 'application/json',
-    ...options.headers,
+    'Authorization': `Bearer ${token}`,
+    ...options.headers
   };
-  
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
   
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
-    headers,
+    headers
   });
   
   if (!response.ok) {
-    const error = await response.json().catch(() => ({
-      message: 'An unknown error occurred',
-    }));
-    throw new Error(error.message || 'Request failed');
+    const error = await response.json();
+    throw new Error(error.msg || 'Something went wrong');
   }
   
-  return response.json();
+  return await response.json();
 };
 
-// Login user
-export const loginUser = async (username, password) => {
-  const response = await fetchWithAuth('/auth/login', {
+// Auth functions
+export const loginUser = async (email, password) => {
+  const response = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ email, password })
   });
   
-  if (response.token) {
-    localStorage.setItem('meditationToken', response.token);
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.msg || 'Login failed');
   }
   
-  return response.user;
+  const data = await response.json();
+  localStorage.setItem('token', data.token);
+  return data.user;
 };
 
-// Logout user
-export const logoutUser = () => {
-  localStorage.removeItem('meditationToken');
+export const registerUser = async (username, email, password) => {
+  const response = await fetch(`${API_URL}/auth/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ username, email, password })
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.msg || error.errors?.[0]?.msg || 'Registration failed');
+  }
+  
+  return await response.json();
 };
 
-// Fetch current user data
+// User data functions
 export const fetchUserData = async () => {
-  return fetchWithAuth('/users/me');
+  return authFetch('/auth/me');
 };
 
-// Fetch group data (all 4 users)
+// Group data functions
 export const fetchGroupData = async () => {
-  return fetchWithAuth('/users/group');
+  return authFetch('/meditations/group-stats');
 };
 
-// Start a meditation session
+// Meditation tracking functions
 export const startMeditation = async (userId, startTime) => {
-  return fetchWithAuth('/meditations/start', {
+  return authFetch('/meditations/start', {
     method: 'POST',
     body: JSON.stringify({
       userId,
-      startTime: startTime.toISOString(),
-    }),
+      startTime: startTime.toISOString()
+    })
   });
 };
 
-// End a meditation session
 export const endMeditation = async (userId, startTime, endTime, duration) => {
-  return fetchWithAuth('/meditations/end', {
+  return authFetch('/meditations/end', {
     method: 'POST',
     body: JSON.stringify({
       userId,
       startTime: startTime.toISOString(),
       endTime: endTime.toISOString(),
-      duration,
-    }),
+      duration
+    })
   });
 };
 
-// Get meditation history
-export const getMeditationHistory = async (userId, startDate, endDate) => {
-  const params = new URLSearchParams();
-  if (startDate) params.append('startDate', startDate.toISOString());
-  if (endDate) params.append('endDate', endDate.toISOString());
-  
-  return fetchWithAuth(`/meditations/history/${userId}?${params}`);
+export default {
+  loginUser,
+  registerUser,
+  fetchUserData,
+  fetchGroupData,
+  startMeditation,
+  endMeditation
 };

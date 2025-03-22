@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
-import { loginUser } from '../services/meditationApi';
+import { Link } from "react-router-dom";
 
 const Login = ({ onLogin }) => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const { email, password } = formData;
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -13,10 +21,29 @@ const Login = ({ onLogin }) => {
     setIsLoading(true);
 
     try {
-      const userData = await loginUser(username, password);
-      onLogin(userData);
+      const response = await fetch("http://localhost:5000/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        // Store token in localStorage
+        localStorage.setItem('token', data.token);
+        onLogin(data.user);
+      } else {
+        setError(data.msg || 'Invalid email or password');
+      }
     } catch (error) {
-      setError('Invalid username or password');
+      console.error('Error:', error);
+      setError('Server connection error');
     } finally {
       setIsLoading(false);
     }
@@ -28,12 +55,13 @@ const Login = ({ onLogin }) => {
         <h1>Group Meditation Tracker</h1>
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="email">Email</label>
             <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              type="email"
+              id="email"
+              name="email"
+              value={email}
+              onChange={handleChange}
               required
             />
           </div>
@@ -42,8 +70,9 @@ const Login = ({ onLogin }) => {
             <input
               type="password"
               id="password"
+              name="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={handleChange}
               required
             />
           </div>
@@ -52,6 +81,7 @@ const Login = ({ onLogin }) => {
             {isLoading ? 'Logging in...' : 'Login'}
           </button>
         </form>
+        <p>Don't have an account? <Link to="/register">Sign Up</Link></p>
       </div>
     </div>
   );
